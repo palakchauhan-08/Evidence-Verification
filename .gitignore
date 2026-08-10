@@ -13,6 +13,7 @@
 !**/src/test/**/target/
 application-local.properties
 application-local.yml
+**/src/main/resources/application.properties
 
 # Frontend build output & dependencies
 **/node_modules/
