@@ -34,6 +34,12 @@ class EvidenceServiceTest {
     @Mock
     private BlockchainService blockchainService;
 
+    @Mock
+    private EmailService emailService;
+
+    @Mock
+    private EvidenceVersionService evidenceVersionService;
+
     @InjectMocks
     private EvidenceService evidenceService;
 
@@ -62,14 +68,19 @@ class EvidenceServiceTest {
 
         assertNotNull(result);
         assertEquals("hello.txt", result.getFileName());
+        assertEquals("txt", result.getFileExtension());
+        assertEquals("text/plain", result.getFileType());
+        assertEquals(11L, result.getFileSize());
         assertEquals("officer@test.com", result.getUploadedBy());
         assertEquals(expectedHash, result.getFileHash());
         assertNotNull(result.getEvidenceId());
         assertTrue(result.getEvidenceId().startsWith("EVI-"));
+        assertNull(result.getCreatedTimestamp());
+        assertNull(result.getModifiedTimestamp());
 
         verify(evidenceRepository, times(1)).save(any(Evidence.class));
         verify(blockchainService, times(1)).anchorHash(anyString(), eq(expectedHash));
-        verify(auditLogService, times(2)).logAction(anyString(), anyString(), eq("officer@test.com"), anyString());
+        verify(auditLogService, times(3)).logCustodyEvent(anyString(), anyString(), eq("officer@test.com"), any(), any(), any(), any(), anyString());
     }
 
     @Test
@@ -100,7 +111,7 @@ class EvidenceServiceTest {
 
         when(evidenceRepository.findByEvidenceId("EVI-1")).thenReturn(Optional.of(e1));
         when(blockchainService.getRecord("EVI-1")).thenReturn(Optional.of(bcRecord));
-        when(auditLogService.getAuditLogsForEvidence("EVI-1")).thenReturn(List.of());
+        when(auditLogService.getChainOfCustodyForEvidence("EVI-1")).thenReturn(List.of());
 
         EvidenceDetailDTO detail = evidenceService.getEvidenceDetail("EVI-1", "officer@test.com");
 
@@ -147,7 +158,7 @@ class EvidenceServiceTest {
         assertEquals(expectedHash, response.getBlockchainHash());
         assertTrue(response.getVerificationMessage().contains("verified successfully"));
 
-        verify(auditLogService, times(1)).logAction("EVI-12345678", "EVIDENCE_VERIFIED", "verifier@test.com", response.getVerificationMessage());
+        verify(auditLogService, times(1)).logCustodyEvent(eq("EVI-12345678"), eq("EVIDENCE_VERIFIED"), eq("verifier@test.com"), any(), any(), any(), any(), eq(response.getVerificationMessage()));
     }
 
     @Test
@@ -163,7 +174,7 @@ class EvidenceServiceTest {
         assertNull(response.getBlockchainHash());
         assertTrue(response.getVerificationMessage().contains("No matching evidence record found in PostgreSQL database"));
 
-        verify(auditLogService, times(1)).logAction("UNKNOWN", "EVIDENCE_VERIFICATION_FAILED", "verifier@test.com", response.getVerificationMessage());
+        verify(auditLogService, times(1)).logCustodyEvent(eq("UNKNOWN"), eq("VERIFICATION_FAILED"), eq("verifier@test.com"), any(), any(), any(), any(), eq(response.getVerificationMessage()));
     }
 
     @Test
@@ -183,14 +194,14 @@ class EvidenceServiceTest {
         VerificationResponse response = evidenceService.verifyEvidence(testFile, "verifier@test.com");
 
         assertNotNull(response);
-        assertEquals("NOT VERIFIED", response.getVerificationStatus());
+        assertEquals("TAMPERED", response.getVerificationStatus());
         assertEquals("EVI-87654321", response.getEvidenceId());
         assertEquals(expectedHash, response.getCalculatedHash());
         assertEquals(expectedHash, response.getStoredHash());
         assertEquals(tamperedHash, response.getBlockchainHash());
         assertTrue(response.getVerificationMessage().contains("Blockchain hash mismatched"));
 
-        verify(auditLogService, times(1)).logAction("EVI-87654321", "EVIDENCE_VERIFICATION_FAILED", "verifier@test.com", response.getVerificationMessage());
+        verify(auditLogService, times(1)).logCustodyEvent(eq("EVI-87654321"), eq("VERIFICATION_FAILED"), eq("verifier@test.com"), any(), any(), any(), any(), anyString());
     }
 
     @Test
@@ -205,8 +216,7 @@ class EvidenceServiceTest {
         assertEquals("hello.txt", result.getFileName());
         verify(evidenceRepository, times(1)).save(any(Evidence.class));
         verify(blockchainService, times(1)).anchorHash(anyString(), eq(expectedHash));
-        verify(auditLogService, times(1)).logAction(anyString(), eq("EVIDENCE_UPLOADED"), eq("officer@test.com"), anyString());
-        verify(auditLogService, times(1)).logAction(anyString(), eq("BLOCKCHAIN_ANCHORING_FAILED"), eq("officer@test.com"), anyString());
+        verify(auditLogService, times(3)).logCustodyEvent(anyString(), anyString(), eq("officer@test.com"), any(), any(), any(), any(), anyString());
     }
 
     @Test
@@ -227,6 +237,78 @@ class EvidenceServiceTest {
         assertNull(response.getBlockchainHash());
         assertTrue(response.getVerificationMessage().contains("no corresponding Blockchain record was found"));
 
-        verify(auditLogService, times(1)).logAction("EVI-99999999", "EVIDENCE_VERIFICATION_FAILED", "verifier@test.com", response.getVerificationMessage());
+        verify(auditLogService, times(1)).logCustodyEvent(eq("EVI-99999999"), eq("VERIFICATION_FAILED"), eq("verifier@test.com"), any(), any(), any(), any(), eq(response.getVerificationMessage()));
+    }
+
+    @Test
+    void testUploadEvidence_PathTraversal_ThrowsException() {
+        MockMultipartFile traversalFile = new MockMultipartFile(
+                "file",
+                "../../etc/passwd",
+                "text/plain",
+                "malicious content".getBytes(StandardCharsets.UTF_8)
+        );
+        assertThrows(IllegalArgumentException.class, () ->
+                evidenceService.uploadEvidence(traversalFile, "officer@test.com")
+        );
+    }
+
+    @Test
+    void testUploadEvidence_BannedExtension_ThrowsException() {
+        MockMultipartFile exeFile = new MockMultipartFile(
+                "file",
+                "payload.exe",
+                "application/x-msdownload",
+                "binary payload".getBytes(StandardCharsets.UTF_8)
+        );
+        assertThrows(IllegalArgumentException.class, () ->
+                evidenceService.uploadEvidence(exeFile, "officer@test.com")
+        );
+    }
+
+    @Test
+    void testVerifyEvidence_TamperDetected_UpdatesStatusAndLogsCustody() throws Exception {
+        Evidence storedEvidence = new Evidence();
+        storedEvidence.setEvidenceId("EVI-TAMPER1");
+        storedEvidence.setFileName("hello.txt");
+        storedEvidence.setFileHash(expectedHash);
+        storedEvidence.setStatus("UPLOADED");
+        storedEvidence.setUploadedBy("officer@test.com");
+
+        BlockchainRecord mismatchedRecord = new BlockchainRecord("EVI-TAMPER1", "different_hash_on_chain", "0xabc", "CONFIRMED");
+
+        when(evidenceRepository.findByFileHash(expectedHash)).thenReturn(Optional.of(storedEvidence));
+        when(blockchainService.getRecord("EVI-TAMPER1")).thenReturn(Optional.of(mismatchedRecord));
+        when(evidenceRepository.save(any(Evidence.class))).thenAnswer(i -> i.getArgument(0));
+
+        VerificationResponse response = evidenceService.verifyEvidence(testFile, "verifier@test.com");
+
+        assertNotNull(response);
+        assertEquals("TAMPERED", storedEvidence.getStatus());
+        verify(emailService, times(1)).sendEvidenceTamperedAlert(anyString(), eq("EVI-TAMPER1"), any(), anyString(), anyString(), any());
+        verify(auditLogService, times(1)).logCustodyEvent(eq("EVI-TAMPER1"), eq("INTEGRITY_COMPROMISED"), eq("verifier@test.com"), any(), any(), any(), any(), anyString());
+    }
+
+    @Test
+    void testVerifyEvidence_AlreadyTampered_SuppressesDuplicateEmail() throws Exception {
+        Evidence storedEvidence = new Evidence();
+        storedEvidence.setEvidenceId("EVI-TAMPER2");
+        storedEvidence.setFileName("hello.txt");
+        storedEvidence.setFileHash(expectedHash);
+        storedEvidence.setStatus("TAMPERED"); // Already TAMPERED
+        storedEvidence.setUploadedBy("officer@test.com");
+
+        BlockchainRecord mismatchedRecord = new BlockchainRecord("EVI-TAMPER2", "different_hash_on_chain", "0xabc", "CONFIRMED");
+
+        when(evidenceRepository.findByFileHash(expectedHash)).thenReturn(Optional.of(storedEvidence));
+        when(blockchainService.getRecord("EVI-TAMPER2")).thenReturn(Optional.of(mismatchedRecord));
+        when(evidenceRepository.save(any(Evidence.class))).thenAnswer(i -> i.getArgument(0));
+
+        VerificationResponse response = evidenceService.verifyEvidence(testFile, "verifier@test.com");
+
+        assertNotNull(response);
+        assertEquals("TAMPERED", storedEvidence.getStatus());
+        // Duplicate email alert suppressed when already in TAMPERED status
+        verify(emailService, never()).sendEvidenceTamperedAlert(anyString(), anyString(), any(), anyString(), anyString(), any());
     }
 }

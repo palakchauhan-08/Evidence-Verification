@@ -27,10 +27,10 @@ const Register = () => {
 
     const result = await register(name, email, password, role);
     if (result.success) {
-      setSuccess('Account registered successfully! Redirecting to Login...');
+      setSuccess(result.message || 'Account registered! A verification link has been sent to your email. Please verify before signing in.');
       setTimeout(() => {
         navigate('/login');
-      }, 1500);
+      }, 4000);
     } else {
       setError(result.message);
     }

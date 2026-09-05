@@ -124,6 +124,20 @@ const UploadEvidence = () => {
                   <div style={{ fontWeight: '600' }}>{uploadResult.fileName}</div>
                 </div>
                 <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>File Extension</div>
+                  <div style={{ fontWeight: '600', textTransform: 'uppercase', color: 'var(--secondary)' }}>
+                    {uploadResult.fileExtension || 'N/A'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>MIME Type</div>
+                  <div>{uploadResult.fileType || 'application/octet-stream'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>File Size</div>
+                  <div style={{ fontWeight: '600' }}>{formatFileSize(uploadResult.fileSize)}</div>
+                </div>
+                <div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Uploaded By</div>
                   <div>{uploadResult.uploadedBy}</div>
                 </div>
@@ -134,7 +148,7 @@ const UploadEvidence = () => {
               </div>
 
               <div style={{ marginTop: '16px' }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>SHA-256 Hash</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Cryptographic SHA-256 Fingerprint</div>
                 <div className="hash-code">{uploadResult.fileHash}</div>
               </div>
             </div>

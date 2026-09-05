@@ -26,6 +26,9 @@ public class User {
 
     private String role;
 
+    @Column(name = "email_verified")
+    private Boolean emailVerified = false;
+
     public User() {
     }
 
@@ -58,10 +61,57 @@ public class User {
     }
 
     public String getRole() {
-        return role;
+        if (role == null || role.trim().isEmpty() || "VERIFIER".equalsIgnoreCase(role)) {
+            return Role.INVESTIGATOR.name();
+        }
+        return role.toUpperCase();
     }
 
     public void setRole(String role) {
-        this.role = role;
+        if (role != null && Role.isValid(role)) {
+            this.role = role.toUpperCase();
+        } else {
+            this.role = role;
+        }
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified == null || emailVerified;
+    }
+
+    public void setEmailVerified(boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    @Column(name = "failed_login_attempts")
+    private Integer failedLoginAttempts = 0;
+
+    @Column(name = "lockout_expiration")
+    private java.time.LocalDateTime lockoutExpiration;
+
+    public int getFailedLoginAttempts() {
+        return failedLoginAttempts == null ? 0 : failedLoginAttempts;
+    }
+
+    public void setFailedLoginAttempts(int failedLoginAttempts) {
+        this.failedLoginAttempts = failedLoginAttempts;
+    }
+
+    public java.time.LocalDateTime getLockoutExpiration() {
+        return lockoutExpiration;
+    }
+
+    public void setLockoutExpiration(java.time.LocalDateTime lockoutExpiration) {
+        this.lockoutExpiration = lockoutExpiration;
+    }
+
+    public boolean isAccountLocked() {
+        if (lockoutExpiration == null) {
+            return false;
+        }
+        if (java.time.LocalDateTime.now().isAfter(lockoutExpiration)) {
+            return false;
+        }
+        return true;
     }
 }

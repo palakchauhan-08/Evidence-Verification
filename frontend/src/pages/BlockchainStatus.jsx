@@ -4,7 +4,7 @@ import { evidenceAPI } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AlertMessage from '../components/AlertMessage';
 import StatusBadge from '../components/StatusBadge';
-import { Link2, Search, Clock, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Link2, Search, Clock, ArrowLeft, ShieldCheck, ExternalLink } from 'lucide-react';
 
 const BlockchainStatus = () => {
   const { evidenceId: paramEvidenceId } = useParams();
@@ -116,20 +116,26 @@ const BlockchainStatus = () => {
 
             <div style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '6px' }}>Transaction Hash</div>
-              <div className="hash-code" style={{ color: 'var(--warning)', fontSize: '0.9rem', padding: '10px 14px', wordBreak: 'break-all' }}>
-                {record.transactionHash}
-              </div>
-              {isRealTx && (
-                <div style={{ marginTop: '8px' }}>
-                  <a
-                    href={`https://amoy.polygonscan.com/tx/${record.transactionHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-outline"
-                    style={{ fontSize: '0.8rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    View on PolygonScan Amoy Explorer ↗
-                  </a>
+              {record.transactionHash && record.transactionHash.trim().length > 0 ? (
+                <>
+                  <div className="hash-code" style={{ color: 'var(--warning)', fontSize: '0.9rem', padding: '10px 14px', wordBreak: 'break-all' }}>
+                    {record.transactionHash}
+                  </div>
+                  <div style={{ marginTop: '10px' }}>
+                    <a
+                      href={`https://amoy.polygonscan.com/tx/${record.transactionHash.trim()}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px', borderColor: 'var(--primary)', color: 'var(--primary)' }}
+                    >
+                      <ExternalLink size={14} /> View on Polygon Explorer ↗
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 0' }}>
+                  Blockchain transaction unavailable
                 </div>
               )}
             </div>

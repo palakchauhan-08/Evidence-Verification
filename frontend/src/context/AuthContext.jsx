@@ -1,20 +1,50 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { authAPI } from '../services/api';
 
 const AuthContext = createContext(null);
+
+const parseJwt = (token) => {
+  if (!token) return null;
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+};
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('jwt_token') || null);
   const [userEmail, setUserEmail] = useState(localStorage.getItem('user_email') || null);
   const [loading, setLoading] = useState(false);
 
+  const decodedJwt = useMemo(() => parseJwt(token), [token]);
+  const userRole = useMemo(() => {
+    if (!token) return null;
+    const roleFromJwt = decodedJwt?.role;
+    if (roleFromJwt) {
+      return roleFromJwt.toUpperCase();
+    }
+    return 'INVESTIGATOR';
+  }, [token, decodedJwt]);
+
   useEffect(() => {
     if (token) {
       localStorage.setItem('jwt_token', token);
+      if (!userEmail && decodedJwt?.sub) {
+        setUserEmail(decodedJwt.sub);
+      }
     } else {
       localStorage.removeItem('jwt_token');
     }
-  }, [token]);
+  }, [token, userEmail, decodedJwt]);
 
   useEffect(() => {
     if (userEmail) {
@@ -43,7 +73,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, password, role = 'VERIFIER') => {
+  const register = async (name, email, password, role = 'INVESTIGATOR') => {
     setLoading(true);
     try {
       const data = await authAPI.register(name, email, password, role);
@@ -66,14 +96,26 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user_email');
   };
 
+  const hasRole = (role) => {
+    return userRole === role;
+  };
+
+  const hasAnyRole = (roles) => {
+    if (!Array.isArray(roles)) return false;
+    return roles.includes(userRole);
+  };
+
   const value = {
     token,
     userEmail,
+    userRole,
     isAuthenticated: !!token,
     loading,
     login,
     register,
     logout,
+    hasRole,
+    hasAnyRole,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

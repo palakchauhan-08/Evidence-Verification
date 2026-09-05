@@ -23,6 +23,17 @@ public class AuditLog {
 
     private String performedBy;
 
+    private String actorRole;
+
+    private String previousStatus;
+
+    private String newStatus;
+
+    @Column(length = 1000)
+    private String reason;
+
+    private Long actorUserId;
+
     private LocalDateTime timestamp;
 
     @Column(length = 1000)
@@ -38,6 +49,19 @@ public class AuditLog {
         this.performedBy = performedBy;
         this.timestamp = LocalDateTime.now();
         this.details = details;
+    }
+
+    public AuditLog(String evidenceId, String action, String performedBy, String actorRole,
+                    String previousStatus, String newStatus, String reason, String details) {
+        this.evidenceId = evidenceId;
+        this.action = action;
+        this.performedBy = performedBy;
+        this.actorRole = actorRole;
+        this.previousStatus = previousStatus;
+        this.newStatus = newStatus;
+        this.reason = reason;
+        this.details = details;
+        this.timestamp = LocalDateTime.now();
     }
 
     public Long getId() {
@@ -66,6 +90,46 @@ public class AuditLog {
 
     public void setPerformedBy(String performedBy) {
         this.performedBy = performedBy;
+    }
+
+    public String getActorRole() {
+        return actorRole;
+    }
+
+    public void setActorRole(String actorRole) {
+        this.actorRole = actorRole;
+    }
+
+    public String getPreviousStatus() {
+        return previousStatus;
+    }
+
+    public void setPreviousStatus(String previousStatus) {
+        this.previousStatus = previousStatus;
+    }
+
+    public String getNewStatus() {
+        return newStatus;
+    }
+
+    public void setNewStatus(String newStatus) {
+        this.newStatus = newStatus;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
+
+    public Long getActorUserId() {
+        return actorUserId;
+    }
+
+    public void setActorUserId(Long actorUserId) {
+        this.actorUserId = actorUserId;
     }
 
     public LocalDateTime getTimestamp() {

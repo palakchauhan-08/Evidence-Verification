@@ -44,6 +44,14 @@ const Login = () => {
 
         <AlertMessage type="danger" message={error} onClose={() => setError('')} />
 
+        {error && error.toLowerCase().includes('verify') && (
+          <div style={{ textAlignment: 'center', marginBottom: '16px', fontSize: '0.88rem' }}>
+            <Link to="/verify-email" style={{ fontWeight: '600', color: 'var(--primary)' }}>
+              Didn't receive verification email? Click here to resend.
+            </Link>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">Email Address</label>
